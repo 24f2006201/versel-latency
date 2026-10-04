@@ -37,3 +37,5 @@ def analytics(request: dict):
         }
 
     return result
+
+handler = app
