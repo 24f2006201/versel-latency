@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
 import json
 import statistics
 
@@ -28,27 +27,15 @@ def percentile(values, p):
     upper = min(lower + 1, len(values))
     fraction = position - lower
 
-    return values[lower] + (values[upper] - values[lower]) * fraction
+    return values[lower] + (
+        values[upper] - values[lower]
+    ) * fraction
 
-
-@app.get("/")
-def home():
-    return {"status": "ok"}
-
-@app.options("/api")
-async def options():
-    return Response(
-        status_code=204,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
-        },
-    )
 
 @app.post("/api")
 async def analytics(request: Request):
     body = await request.json()
+
     regions = body["regions"]
     threshold = body["threshold_ms"]
 
