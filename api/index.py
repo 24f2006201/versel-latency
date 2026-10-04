@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import json
 import statistics
@@ -8,7 +8,7 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["*"],
+    allow_methods=["POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -36,9 +36,10 @@ def home():
 
 
 @app.post("/")
-def analytics(request: dict):
-    regions = request["regions"]
-    threshold = request["threshold_ms"]
+async def analytics(request: Request):
+    body = await request.json()
+    regions = body["regions"]
+    threshold = body["threshold_ms"]
 
     result = {}
 
