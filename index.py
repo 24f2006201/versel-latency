@@ -16,6 +16,25 @@ with open("q-vercel-latency.json") as f:
     data = json.load(f)
 
 
+def percentile(values, p):
+    values = sorted(values)
+
+    if len(values) == 1:
+        return values[0]
+
+    position = (len(values) - 1) * p
+    lower = int(position)
+    upper = min(lower + 1, len(values))
+    fraction = position - lower
+
+    return values[lower] + (values[upper] - values[lower]) * fraction
+
+
+@app.get("/")
+def home():
+    return {"status": "ok"}
+
+
 @app.post("/")
 def analytics(request: dict):
     regions = request["regions"]
@@ -24,18 +43,26 @@ def analytics(request: dict):
     result = {}
 
     for region in regions:
-        records = [r for r in data if r["region"] == region]
+        records = [
+            r for r in data
+            if r["region"] == region
+        ]
 
-        latencies = [r["latency_ms"] for r in records]
-        uptimes = [r["uptime_pct"] for r in records]
+        latencies = [
+            r["latency_ms"] for r in records
+        ]
+
+        uptimes = [
+            r["uptime_pct"] for r in records
+        ]
 
         result[region] = {
             "avg_latency": statistics.mean(latencies),
-            "p95_latency": statistics.quantiles(latencies, n=100)[94],
+            "p95_latency": percentile(latencies, 0.95),
             "avg_uptime": statistics.mean(uptimes),
-            "breaches": sum(x > threshold for x in latencies)
+            "breaches": sum(
+                x > threshold for x in latencies
+            )
         }
 
     return result
-
-handler = app
