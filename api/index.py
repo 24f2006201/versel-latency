@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 import json
 import statistics
 
@@ -34,6 +35,16 @@ def percentile(values, p):
 def home():
     return {"status": "ok"}
 
+@app.options("/api")
+async def options():
+    return Response(
+        status_code=204,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+        },
+    )
 
 @app.post("/api")
 async def analytics(request: Request):
