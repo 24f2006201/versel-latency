@@ -10,9 +10,10 @@ with open(DATA_PATH, "r") as f:
 CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "*",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",  # changed from *
     "Content-Type": "application/json",
 }
+
 
 class handler(BaseHTTPRequestHandler):
 
