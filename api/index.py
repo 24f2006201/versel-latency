@@ -4,22 +4,31 @@ import json, os
 import numpy as np
 
 app = Flask(__name__)
-CORS(app, origins="*", allow_headers="*", methods=["GET", "POST", "OPTIONS"])
+CORS(app)
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "q-vercel-latency.json")
-with open(DATA_PATH, "r") as f:
-    ALL_RECORDS = json.load(f)
+# Vercel-safe path resolution
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.path.join(BASE_DIR, "..", "q-vercel-latency.json")
+
+try:
+    with open(DATA_PATH, "r") as f:
+        ALL_RECORDS = json.load(f)
+except Exception as e:
+    ALL_RECORDS = []
+    LOAD_ERROR = str(e)
+else:
+    LOAD_ERROR = None
 
 @app.route("/", methods=["GET", "POST", "OPTIONS"])
 @app.route("/<path:path>", methods=["GET", "POST", "OPTIONS"])
 def handle(path=""):
-    if request.method == "OPTIONS":
-        return jsonify({}), 204
+    if LOAD_ERROR:
+        return jsonify({"error": f"Data load failed: {LOAD_ERROR}"}), 500
 
-    if request.method == "GET":
+    if request.method in ("GET", "OPTIONS"):
         return jsonify({"status": "ok"})
 
-    body         = request.get_json(force=True)
+    body         = request.get_json(force=True) or {}
     regions      = body.get("regions", [])
     threshold_ms = body.get("threshold_ms", 180)
 
