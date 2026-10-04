@@ -7,6 +7,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+@app.options("/")
+def options_handler(request: Request):
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+        }
+    )
+
 app = FastAPI()
 
 # Step A: Enable CORS so any website/dashboard can call this endpoint
