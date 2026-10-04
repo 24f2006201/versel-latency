@@ -1,0 +1,12 @@
+name: Hello World Action
+
+on:
+  workflow_dispatch:   # Lets you trigger it manually with a button
+
+jobs:
+  greet:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 24f2006201@ds.study.iitm.ac.in
+        run: echo "Hello, world!"
