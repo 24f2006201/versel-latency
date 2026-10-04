@@ -10,21 +10,28 @@ with open(DATA_PATH, "r") as f:
 CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",  # changed from *
-    "Content-Type": "application/json",
+    "Access-Control-Allow-Headers": "*",          # allow ANY header the portal sends
+    "Access-Control-Allow-Private-Network": "true",
+    "Access-Control-Max-Age": "86400",            # cache preflight for 24h
 }
-
 
 class handler(BaseHTTPRequestHandler):
 
     def send_cors_headers(self):
         for key, value in CORS_HEADERS.items():
             self.send_header(key, value)
+        self.send_header("Content-Type", "application/json")
 
     def do_OPTIONS(self):
+        self.send_response(204)          # 204 No Content is more correct for preflights
+        self.send_cors_headers()
+        self.end_headers()
+
+    def do_GET(self):                    # some portals probe with GET first
         self.send_response(200)
         self.send_cors_headers()
         self.end_headers()
+        self.wfile.write(json.dumps({"status": "ok"}).encode())
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
@@ -53,3 +60,6 @@ class handler(BaseHTTPRequestHandler):
         self.send_cors_headers()
         self.end_headers()
         self.wfile.write(response)
+
+    def log_message(self, format, *args):
+        pass   # suppress Vercel log noise
