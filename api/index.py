@@ -11,6 +11,9 @@ from typing import List
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+app = FastAPI()
+
+
 @app.options("/")
 def options_handler(request: Request):
     return JSONResponse(
@@ -21,8 +24,6 @@ def options_handler(request: Request):
             "Access-Control-Allow-Headers": "Content-Type",
         }
     )
-
-app = FastAPI()
 
 # Step A: Enable CORS so any website/dashboard can call this endpoint
 app.add_middleware(
