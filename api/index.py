@@ -35,7 +35,7 @@ def home():
     return {"status": "ok"}
 
 
-@app.post("/")
+@app.post("/api")
 async def analytics(request: Request):
     body = await request.json()
     regions = body["regions"]
