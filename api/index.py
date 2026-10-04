@@ -1,50 +1,37 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import json, os
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+import json
 import numpy as np
 
-app = Flask(__name__)
-CORS(app)
+app = FastAPI()
 
-# Vercel-safe path resolution
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(BASE_DIR, "..", "q-vercel-latency.json")
+# This is the critical part you are missing
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-try:
-    with open(DATA_PATH, "r") as f:
-        ALL_RECORDS = json.load(f)
-except Exception as e:
-    ALL_RECORDS = []
-    LOAD_ERROR = str(e)
-else:
-    LOAD_ERROR = None
+# Load the telemetry data at startup
+with open("q-vercel-latency.json") as f:
+    DATA = json.load(f)
 
-@app.route("/", methods=["GET", "POST", "OPTIONS"])
-@app.route("/<path:path>", methods=["GET", "POST", "OPTIONS"])
-def handle(path=""):
-    if LOAD_ERROR:
-        return jsonify({"error": f"Data load failed: {LOAD_ERROR}"}), 500
-
-    if request.method in ("GET", "OPTIONS"):
-        return jsonify({"status": "ok"})
-
-    body         = request.get_json(force=True) or {}
-    regions      = body.get("regions", [])
+@app.post("/")
+async def analytics(request: Request):
+    body = await request.json()
+    regions = body.get("regions", [])
     threshold_ms = body.get("threshold_ms", 180)
 
-    results = {}
+    result = {}
     for region in regions:
-        records = [r for r in ALL_RECORDS if r["region"] == region]
-        if not records:
-            results[region] = None
-            continue
+        records = [r for r in DATA if r["region"] == region]
         latencies = [r["latency_ms"] for r in records]
-        uptimes   = [r["uptime_pct"]  for r in records]
-        results[region] = {
-            "avg_latency": float(np.mean(latencies)),
-            "p95_latency": float(np.percentile(latencies, 95)),
-            "avg_uptime":  float(np.mean(uptimes)),
-            "breaches":    int(sum(1 for l in latencies if l > threshold_ms)),
+        uptimes = [r["uptime"] for r in records]
+        result[region] = {
+            "avg_latency": round(float(np.mean(latencies)), 4),
+            "p95_latency": round(float(np.percentile(latencies, 95)), 4),
+            "avg_uptime": round(float(np.mean(uptimes)), 4),
+            "breaches": int(sum(1 for l in latencies if l > threshold_ms))
         }
-
-    return jsonify(results)
+    return result
