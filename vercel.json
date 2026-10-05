@@ -1,3 +1,21 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "api/index.py",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE, PATCH, HEAD, *",
+        "Access-Control-Allow-Headers": "*",
+        "Access-Control-Expose-Headers": "*, Access-Control-Allow-Origin, access-control-allow-origin",
+        "Access-Control-Max-Age": "0"
+      }
+    }
+  ]
 }

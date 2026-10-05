@@ -1,73 +1,105 @@
-from http.server import BaseHTTPRequestHandler
+# api/index.py
+from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 import json
-import math
+import numpy as np
 from pathlib import Path
 
-DATA_PATH = Path(__file__).parent / "q-vercel-latency.json"
-with open(DATA_PATH) as f:
-    RAW_DATA = json.load(f)
+app = FastAPI(title="Latency Analytics Service")
 
+# 1. Custom middleware — attaches CORS headers to EVERY response
+@app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    if request.method == "OPTIONS":
+        response = Response(status_code=200)
+    else:
+        response = await call_next(request)
 
-def percentile(values, p):
-    # Same linear interpolation as numpy.percentile
-    s = sorted(values)
-    k = (len(s) - 1) * p / 100
-    lo, hi = math.floor(k), math.ceil(k)
-    if lo == hi:
-        return s[int(k)]
-    return s[lo] + (s[hi] - s[lo]) * (k - lo)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE, PATCH, HEAD, *"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Expose-Headers"] = "*, Access-Control-Allow-Origin, access-control-allow-origin"
+    response.headers["Access-Control-Max-Age"] = "0"
+    return response
 
+# 2. Standard CORSMiddleware (belt-and-suspenders approach)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*", "Access-Control-Allow-Origin", "access-control-allow-origin"],
+    max_age=0,
+)
 
-class handler(BaseHTTPRequestHandler):
+# Load the telemetry dataset
+# Looks in api/ first, then the project root
+DATA_FILE = Path(__file__).parent / "q-vercel-latency.json"
+if not DATA_FILE.exists():
+    DATA_FILE = Path(__file__).parent.parent / "q-vercel-latency.json"
 
-    def end_headers(self):
-        requested = self.headers.get("Access-Control-Request-Headers", "Content-Type")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", requested)
-        self.send_header("Access-Control-Max-Age", "86400")
-        super().end_headers()
+with open(DATA_FILE, "r", encoding="utf-8") as f:
+    TELEMETRY_DATA = json.load(f)
 
-    def _send_json(self, status, obj):
-        payload = json.dumps(obj).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
+# Handle OPTIONS preflight requests (browsers send these before POST)
+@app.options("/{full_path:path}")
+async def options_handler():
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE, PATCH, HEAD, *",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Expose-Headers": "*, Access-Control-Allow-Origin, access-control-allow-origin",
+            "Access-Control-Max-Age": "0",
+        }
+    )
 
-    def do_OPTIONS(self):
-        self.send_response(204)
-        self.send_header("Content-Length", "0")
-        self.end_headers()
+# GET routes — health check so you can confirm the API is alive
+@app.get("/")
+@app.get("/api")
+@app.get("/api/")
+async def health_check():
+    return {
+        "status": "online",
+        "message": "Latency Analytics API is running. Send a POST request to analyze telemetry data."
+    }
 
-    def do_GET(self):
-        self._send_json(200, {"status": "ok", "usage": "POST {regions: [...], threshold_ms: 180}"})
+# POST routes — the actual analytics endpoint
+@app.post("/")
+@app.post("/api")
+@app.post("/api/")
+async def calculate_metrics(request: Request):
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
 
-    def do_POST(self):
-        try:
-            length = int(self.headers.get("Content-Length", 0))
-            body = json.loads(self.rfile.read(length) or b"{}")
-        except Exception:
-            return self._send_json(400, {"error": "invalid JSON body"})
+    regions_requested = payload.get("regions", [])
+    threshold_ms = float(payload.get("threshold_ms", 180))
 
-        regions = body.get("regions", [])
-        threshold_ms = body.get("threshold_ms", 180)
+    results = []
 
-        result = {}
-        for region in regions:
-            records = [r for r in RAW_DATA if r["region"] == region]
-            if not records:
-                result[region] = {"avg_latency": None, "p95_latency": None,
-                                  "avg_uptime": None, "breaches": 0}
-                continue
-            lat = [r["latency_ms"] for r in records]
-            up = [r["uptime_pct"] for r in records]
-            result[region] = {
-                "avg_latency": round(sum(lat) / len(lat), 4),
-                "p95_latency": round(percentile(lat, 95), 4),
-                "avg_uptime": round(sum(up) / len(up), 4),
-                "breaches": sum(1 for l in lat if l > threshold_ms),
-            }
+    for region in regions_requested:
+        # Filter telemetry records for this region
+        region_records = [d for d in TELEMETRY_DATA if d.get("region") == region]
 
-        self._send_json(200, result)
+        if region_records:
+            latencies = [d["latency_ms"] for d in region_records if "latency_ms" in d]
+            uptimes   = [d["uptime_pct"] for d in region_records if "uptime_pct" in d]
+
+            avg_lat     = round(float(np.mean(latencies)), 2)       if latencies else 0.0
+            p95_lat     = round(float(np.percentile(latencies, 95)), 2) if latencies else 0.0
+            avg_upt     = round(float(np.mean(uptimes)), 3)          if uptimes   else 0.0
+            breach_count = sum(1 for lat in latencies if lat > threshold_ms)
+
+            results.append({
+                "region":      region,
+                "avg_latency": avg_lat,
+                "p95_latency": p95_lat,
+                "avg_uptime":  avg_upt,
+                "breaches":    breach_count
+            })
+
+    return {"regions": results}
