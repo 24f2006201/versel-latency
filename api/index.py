@@ -21,9 +21,11 @@ def percentile(values, p):
 class handler(BaseHTTPRequestHandler):
 
     def end_headers(self):
+        requested = self.headers.get("Access-Control-Request-Headers", "Content-Type")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", requested)
+        self.send_header("Access-Control-Max-Age", "86400")
         super().end_headers()
 
     def _send_json(self, status, obj):
