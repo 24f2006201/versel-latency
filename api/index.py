@@ -1,16 +1,25 @@
 from http.server import BaseHTTPRequestHandler
 import json
-import numpy as np
+import math
 from pathlib import Path
 
-DATA_PATH = Path(__file__).parent.parent / "q-vercel-latency.json"
+DATA_PATH = Path(__file__).parent / "q-vercel-latency.json"
 with open(DATA_PATH) as f:
     RAW_DATA = json.load(f)
 
 
+def percentile(values, p):
+    # Same linear interpolation as numpy.percentile
+    s = sorted(values)
+    k = (len(s) - 1) * p / 100
+    lo, hi = math.floor(k), math.ceil(k)
+    if lo == hi:
+        return s[int(k)]
+    return s[lo] + (s[hi] - s[lo]) * (k - lo)
+
+
 class handler(BaseHTTPRequestHandler):
 
-    # Every response, including 501/400/500 from send_error, gets CORS headers
     def end_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -27,11 +36,6 @@ class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Content-Length", "0")
-        self.end_headers()
-
-    def do_HEAD(self):
-        self.send_response(200)
         self.send_header("Content-Length", "0")
         self.end_headers()
 
@@ -55,13 +59,13 @@ class handler(BaseHTTPRequestHandler):
                 result[region] = {"avg_latency": None, "p95_latency": None,
                                   "avg_uptime": None, "breaches": 0}
                 continue
-            latencies = [r["latency_ms"] for r in records]
-            uptimes = [r["uptime_pct"] for r in records]
+            lat = [r["latency_ms"] for r in records]
+            up = [r["uptime_pct"] for r in records]
             result[region] = {
-                "avg_latency": round(float(np.mean(latencies)), 4),
-                "p95_latency": round(float(np.percentile(latencies, 95)), 4),
-                "avg_uptime": round(float(np.mean(uptimes)), 4),
-                "breaches": int(sum(1 for l in latencies if l > threshold_ms)),
+                "avg_latency": round(sum(lat) / len(lat), 4),
+                "p95_latency": round(percentile(lat, 95), 4),
+                "avg_uptime": round(sum(up) / len(up), 4),
+                "breaches": sum(1 for l in lat if l > threshold_ms),
             }
 
         self._send_json(200, result)

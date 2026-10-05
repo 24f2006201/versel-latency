@@ -1,5 +1,3 @@
 {
-  "functions": {
-    "api/index.py": { "includeFiles": "q-vercel-latency.json" }
-  }
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
 }
